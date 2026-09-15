@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<title>Chat - WebSocket</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 600px;
+    margin: 40px auto;
+    background: #f4f4f4;
+  }
+  #chat-log {
+    width: 100%;
+    height: 400px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 10px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+  }
+  .message {
+    padding: 6px 10px;
+    margin: 4px 0;
+    border-radius: 6px;
+    background: #e2e2e2;
+    word-wrap: break-word;
+  }
+  #room-name-input, #chat-message-input {
+    width: 70%;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  button {
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  #status {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+  <h2>WebSocket Chat</h2>
+
+  <div>
+    Xona nomi:
+    <input id="room-name-input" type="text" value="P39">
+    <button id="connect-btn">Ulanish</button>
+  </div>
+
+  <p id="status">Ulanmagan</p>
+
+  <div id="chat-log"></div>
+
+  <input id="chat-message-input" type="text" placeholder="Xabar yozing...">
+  <button id="chat-message-submit">Yuborish</button>
+
+<script>
+  const SERVER_HOST = "172.20.10.13:8000"; // kerak bo'lsa shu yerni o'zgartiring
+
+  let chatSocket = null;
+
+  const roomInput = document.getElementById('room-name-input');
+  const connectBtn = document.getElementById('connect-btn');
+  const statusEl = document.getElementById('status');
+  const chatLog = document.getElementById('chat-log');
+  const messageInput = document.getElementById('chat-message-input');
+  const submitBtn = document.getElementById('chat-message-submit');
+
+  function addMessage(text) {
+    const div = document.createElement('div');
+    div.className = 'message';
+    div.textContent = text;
+    chatLog.appendChild(div);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  function connect() {
+    const roomName = roomInput.value.trim();
+    if (!roomName) {
+      alert("Xona nomini kiriting!");
+      return;
+    }
+
+    if (chatSocket) {
+      chatSocket.close();
+    }
+
+    const wsUrl = `ws://${SERVER_HOST}/ws/chat/${roomName}/`;
+    chatSocket = new WebSocket(wsUrl);
+
+    statusEl.textContent = "Ulanmoqda... (" + wsUrl + ")";
+
+    chatSocket.onopen = function () {
+      statusEl.textContent = "Ulandi ✅ (" + wsUrl + ")";
+      addMessage("--- Xonaga ulandingiz: " + roomName + " ---");
+    };
+
+    chatSocket.onmessage = function (e) {
+      const data = JSON.parse(e.data);
+      // consumers.py da odatda { "message": "..." } shaklida yuboriladi
+      addMessage(data.message !== undefined ? data.message : e.data);
+    };
+
+    chatSocket.onclose = function () {
+      statusEl.textContent = "Ulanish uzildi ❌";
+      addMessage("--- Ulanish yopildi ---");
+    };
+
+    chatSocket.onerror = function (err) {
+      statusEl.textContent = "Xatolik yuz berdi ⚠️";
+      console.error("WebSocket xatosi:", err);
+    };
+  }
+
+  function sendMessage() {
+    const message = messageInput.value.trim();
+    if (!message) return;
+
+    if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+      alert("Avval xonaga ulaning!");
+      return;
+    }
+
+    chatSocket.send(JSON.stringify({
+      'message': message
+    }));
+
+    messageInput.value = '';
+  }
+
+  connectBtn.addEventListener('click', connect);
+
+  submitBtn.addEventListener('click', sendMessage);
+
+  messageInput.addEventListener('keyup', function (e) {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  });
+</script>
+
+</body>
+</html>
